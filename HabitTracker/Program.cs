@@ -1,4 +1,5 @@
 ﻿using Microsoft.Data.Sqlite;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 DB db = new();
 db.CreateNew(); // Only runs on start if no tasks.db exists
@@ -26,6 +27,7 @@ do
             break;
         case 4:
             // Delete Record
+            Menu.DeleteRecord(db);
             break;
         case 5:
             // Update Record
@@ -180,6 +182,49 @@ class Menu
             Console.WriteLine("No records available");
     }
 
+    static int SelectFromRecords(DB db, string action)
+    {
+        Console.Clear();
+        Console.WriteLine($"\nPlease select record to {action}:\n");
+        List<string[]> records = db.GetAll();
+        if (records.Count > 0)
+        {
+            for (int i = 0; i < records.Count; i++)
+                Console.WriteLine($"{i + 1}:\t{records[i][0]} performed {records[i][1]} time{(records[i][1] == "1" ? "" : "s")} on {records[i][2]}");
+            string? response = Console.ReadLine();
+            int recordIndex;
+            while(!int.TryParse(response, out recordIndex) || recordIndex < 1 || recordIndex > records.Count)
+            {
+                Console.WriteLine("Invalid choice, please try again: ");
+                response = Console.ReadLine();
+            }
+            return int.Parse(records[recordIndex - 1][3]);
+        }
+        else
+        {
+            Console.Clear();
+            Console.WriteLine("No records available");
+            return 0;
+        }
+    }
+
+    public static void UpdateRecord(DB db)
+    {
+        int idToDelete = SelectFromRecords(db, "update");
+    }
+
+    public static void DeleteRecord(DB db)
+    {
+        int idToDelete = SelectFromRecords(db, "delete");
+        if(idToDelete != 0)
+        {
+            db.DeleteRecord(idToDelete);
+            Console.Clear();
+            Console.WriteLine("\nRecord deleted");
+        }
+        
+    }
+
     static string GetDescription()
     {
         Console.WriteLine("\nPlease enter a short description for the habit:");
@@ -271,7 +316,7 @@ class DB
             var command = connection.CreateCommand();
             command.CommandText =
             @"
-                SELECT description, amount, date FROM tasks
+                SELECT description, amount, date, id FROM tasks
                 ORDER BY date DESC;
             ";
 
@@ -279,7 +324,7 @@ class DB
             {
                 while (reader.Read())
                 {
-                    results.Add([reader.GetString(0), reader.GetString(1), reader.GetString(2)]);
+                    results.Add([reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)]);
                 }
             }
         }
@@ -333,5 +378,54 @@ class DB
             command.ExecuteNonQuery();
 
         }
+    }
+
+    public void DeleteRecord(int id)
+    {
+        using (var connection = new SqliteConnection("Data Source=tasks.db"))
+        {
+            connection.Open();
+
+            var command = connection.CreateCommand();
+
+
+            command.CommandText =
+            @"
+                DELETE FROM tasks
+                WHERE id = $id;
+            ";
+            command.Parameters.AddWithValue("$id", id);
+            command.ExecuteNonQuery();
+
+        }
+    }
+
+    public string[] GetSingleRecord(int id)
+    {
+        string[] result = new string[3];
+        using (var connection = new SqliteConnection("Data Source=tasks.db"))
+        {
+            connection.Open();
+
+            var command = connection.CreateCommand();
+
+            command.CommandText =
+            @"
+                SELECT description, amount, date FROM tasks
+                WHERE id = $id;
+            ";
+            command.Parameters.AddWithValue("$id", id);
+            using(var reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    result[0] = reader.GetString(0);
+                    result[1] = reader.GetString(1);
+                    result[2] = reader.GetString(2);
+                }
+            }
+        }
+
+        return result;
     }
 }
