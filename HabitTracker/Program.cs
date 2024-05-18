@@ -3,7 +3,7 @@
 DB db = new();
 db.CreateNew(); // Only runs on start if no tasks.db exists
 DateTime today = DateTime.UtcNow.Date;
-Console.WriteLine(today.ToString("yyyy-MM-dd"));
+//Console.WriteLine(today.ToString("yyyy-MM-dd"));
 int menuSelection;
 do
 {
@@ -18,13 +18,11 @@ do
             break;
         case 2:
             // View All Records
-            Console.Clear();
-            Console.WriteLine("\nDisplaying all records from most recent to oldest:\n");
-            foreach(var record in db.GetAll())
-                Console.WriteLine($"{record[0]} performed {record[1]} time{(record[1] == "1" ? "" : "s")} on {record[2]}");
+            Menu.ViewAllRecords(db);
             break;
         case 3:
             // Insert Record
+            Menu.InsertRecord(db);
             break;
         case 4:
             // Delete Record
@@ -34,9 +32,7 @@ do
             break;
         case 6:
             // Delete database
-            db.DeleteAll();
-            Console.Clear();
-            Console.WriteLine("\nAll records deleted");
+            Menu.DeleteAllRecords(db);
             break;
     }
 } while (menuSelection != 1);
@@ -92,26 +88,138 @@ class Menu
         return menuChoice;
     }
 
-    public static void GetRecordInfo()
+    public static void InsertRecord(DB db)
     {
+        Console.Clear();
         Console.WriteLine("Would you like to use a pre-existing habit? y/n");
         string? response = Console.ReadLine();
-        if(response != null && response.ToLower() == "y")
+        
+        string? description;
+        int amount;
+        string? date;
+        if(!string.IsNullOrEmpty(response) && response.ToLower() == "y")
         {
             // Display all unique record inputs
+            List<string> records = db.GetUniqueRecords();
+            if(records.Count > 0)
+            {
+                for (int i = 0; i < records.Count; i++)
+                    Console.WriteLine($"{i + 1}:\t{records[i]}");
+                string? recordResponse = Console.ReadLine();
+                int chosenRecord;
+                while(!int.TryParse(recordResponse, out chosenRecord) || chosenRecord < 1 || chosenRecord > records.Count)
+                {
+                    Console.WriteLine("Invalid response");
+                    recordResponse = Console.ReadLine();
+                }
+                description = records[chosenRecord - 1];
+            }
+            else
+            {
+                Console.WriteLine("No records found");
+                description = GetDescription();
+            }
         }
         else
         {
             // Get new record entry
+            description = GetDescription();
+        }
+        
+        // Get amount
+        Console.Clear();
+        Console.WriteLine($"\t{description}\n");
+        Console.WriteLine("Please enter amount of times habit was done");
+        string? amountResponse = Console.ReadLine();
+        while(!int.TryParse(amountResponse, out amount))
+        {
+            Console.WriteLine("Invalid response. Please enter amount of times habit was done");
+            amountResponse = Console.ReadLine();
+        }
+
+        // Get date
+        Console.Clear();
+        Console.WriteLine($"\t{description} done {amount} time{(amount == 1 ? "" : "s")}\n");
+        Console.WriteLine("Please enter date(YYYY-MM-DD) of habit or leave blank for today");
+        string? dateResponse = Console.ReadLine();
+        DateTime rawDate = new();
+        while(!string.IsNullOrEmpty(dateResponse) && !DateTime.TryParse(dateResponse, out rawDate))
+        {
+            Console.WriteLine("Invalid date, please try again");
+            dateResponse = Console.ReadLine();
+        }
+        if (string.IsNullOrEmpty(dateResponse))
+            date = DateTime.Today.ToString("yyyy-MM-dd");
+        else
+            date = rawDate.ToString("yyyy-MM-dd");
+
+        //Insert new record
+        //Console.Clear();
+        try
+        {
+            db.InsertRecord(description, amount, date);
+            Console.WriteLine("Habit successfully logged");
+        } catch(Exception e)
+        {
+            Console.Error.WriteLine("Error has occured"); // This is shite I know
+        }
+
+
+
+    }
+
+    public static void ViewAllRecords(DB db)
+    {
+        Console.Clear();
+        Console.WriteLine("\nDisplaying all records from most recent to oldest:\n");
+        List<string[]> records = db.GetAll();
+        if (records.Count > 0)
+            foreach (var record in records)
+                Console.WriteLine($"{record[0]} performed {record[1]} time{(record[1] == "1" ? "" : "s")} on {record[2]}");
+        else
+            Console.WriteLine("No records available");
+    }
+
+    static string GetDescription()
+    {
+        Console.WriteLine("\nPlease enter a short description for the habit:");
+        string? description = Console.ReadLine();
+        while(string.IsNullOrEmpty(description))
+        {
+            Console.WriteLine("Description cannot be null, please enter a short description for the habit:");
+            description = Console.ReadLine();
+        }
+
+
+        return description;
+    }
+
+    public static void DeleteAllRecords(DB db)
+    {
+        db.DeleteAll();
+        Console.Clear();
+        Console.WriteLine("\nAll records deleted\n");
+        Console.WriteLine("Re-populate with starter data? y/n");
+        string? repopulateResponse = Console.ReadLine();
+        if (!string.IsNullOrEmpty(repopulateResponse)) repopulateResponse.Trim().ToLower();
+        if (repopulateResponse == "y")
+        {
+            db.CreateNew();
+            Console.WriteLine("\nDatabase reset to starter data\n");
+        }
+        else
+        {
+            db.CreateNew(false);
+            Console.WriteLine("\nDatabase initialized with no data\n");
         }
     }
 }
 class DB
 {
-    public void CreateNew()
+    public void CreateNew(bool withStarterData = true)
     {
         if(!File.Exists("tasks.db")){
-            using (var connection = new SqliteConnection($"Data Source=tasks.db"))
+            using (var connection = new SqliteConnection("Data Source=tasks.db"))
             {
                 connection.Open();
 
@@ -124,14 +232,24 @@ class DB
                     amount INTEGER NOT NULL,
                     date DATE NOT NULL
                 );
-
-                INSERT INTO tasks
-                       (description,                    amount, date)
-                VALUES ('drink water',                  3,      '2024-05-18'),
-                       ('walk a mile',                  5,      '2024-05-18'),
-                       ('make fake records for app',    2,      '2024-05-18');
-            ";
+                ";
                 command.ExecuteNonQuery();
+
+                if (withStarterData)
+                {
+                    command.CommandText =
+                    @"
+                    INSERT INTO tasks
+                           (description,                    amount, date)
+                    VALUES  ('drink water',                  3,      '2024-05-18'),
+                            ('walk a mile',                  5,      '2024-05-18'),
+                            ('make fake records for app',    2,      '2024-05-18'),
+                            ('drink water',                  2,      '2024-05-17'),
+                            ('make fake records for app',    1,      '2024-05-17');
+                    ";
+                    command.ExecuteNonQuery();
+                }
+                
             }
             Console.WriteLine($"Database tasks created successfully");
         }
@@ -147,7 +265,7 @@ class DB
     {
         List<string[]> results = new();
 
-        using (var connection = new SqliteConnection($"Data Source=tasks.db"))
+        using (var connection = new SqliteConnection("Data Source=tasks.db"))
         {
             connection.Open();
             var command = connection.CreateCommand();
@@ -167,5 +285,53 @@ class DB
         }
 
         return results;
+    }
+
+    public List<string> GetUniqueRecords()
+    {
+        List<string> results = new List<string>();
+
+        using (var connection = new SqliteConnection("Data Source=tasks.db"))
+        {
+            connection.Open();
+            var command = connection.CreateCommand();
+            command.CommandText =
+            @"
+                SELECT DISTINCT description FROM tasks;
+            ";
+
+            using(var reader = command.ExecuteReader())
+            {
+                while(reader.Read())
+                {
+                    results.Add(reader.GetString(0));
+                }
+            }
+        }
+
+        return results;
+    }
+
+    public void InsertRecord(string description, int amount, string date)
+    {
+        using (var connection = new SqliteConnection("Data Source=tasks.db"))
+        {
+            connection.Open();
+
+            var command = connection.CreateCommand();
+            
+            
+            command.CommandText =
+            @"
+                INSERT INTO tasks
+                        (description, amount, date)
+                VALUES  ($description, $amount, $date);
+            ";
+            command.Parameters.AddWithValue("$description", description);
+            command.Parameters.AddWithValue("$amount", amount);
+            command.Parameters.AddWithValue("$date", date);
+            command.ExecuteNonQuery();
+
+        }
     }
 }
