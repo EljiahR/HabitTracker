@@ -1,25 +1,52 @@
 ﻿using Microsoft.Data.Sqlite;
 
-DB db = new DB();
+int menuSelection = Menu.GetMenuChoice();
+DB db = new();
 
-db.CreateNew();
-
-Console.WriteLine($"Currently accessing tasks");
-
-foreach (var line in db.GetAll())
+switch(menuSelection)
 {
-    Console.WriteLine(line);
+    case 1:
+        // Close Application
+        Console.WriteLine("Goodbye!");
+        break;
+    case 2:
+        // View All Records
+        break;
+    case 3:
+        // Insert Record
+        break;
+    case 4:
+        // Delete Record
+        break;
+    case 5:
+        // Update Record
+        break;
+    case 6:
+        // Delete database
+        db.DeleteAll();
+        break;
 }
 
-Console.WriteLine("Delete database? y/n");
-bool deleteDB = Console.ReadLine() == "y";
+//DB db = new DB();
 
-//Cleanup
-if(deleteDB) db.Delete();
+//db.CreateNew();
+
+//Console.WriteLine($"Currently accessing tasks");
+
+//foreach (var line in db.GetAll())
+//{
+//    Console.WriteLine(line);
+//}
+
+//Console.WriteLine("Delete database? y/n");
+//bool deleteDB = Console.ReadLine() == "y";
+
+////Cleanup
+//if(deleteDB) db.Delete();
 
 class Menu
 {
-    public int DisplayMainMenu()
+    public static int GetMenuChoice()
     {
         Console.WriteLine();
         Console.WriteLine("Main Menu");
@@ -35,20 +62,23 @@ class Menu
             Console.WriteLine("3. Insert Record");
             Console.WriteLine("4. Delete Record");
             Console.WriteLine("5. Update Record");
+            Console.WriteLine();
+            Console.WriteLine("6. Delete All Records");
             if(int.TryParse(Console.ReadLine(), out menuChoice))
             {
-                if(menuChoice > 5 || menuChoice < 1)
+                if (menuChoice > 6 || menuChoice < 1)
                 {
                     validInput = false;
                     Console.WriteLine("Error: Option outside range");
                     Console.WriteLine();
                 }
+                else validInput = true;
             } else
             {
-                Console.WriteLine("Please use 1-5 to make your selection");
+                Console.WriteLine("Please use 1-6 to make your selection");
                 Console.WriteLine();
             }
-        } while (validInput);
+        } while (!validInput);
 
         return menuChoice;
     }
@@ -67,7 +97,9 @@ class DB
                 @"
                 CREATE TABLE tasks (
                     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL
+                    description TEXT NOT NULL,
+                    amount INTEGER NOT NULL,
+                    date DATE NOT NULL
                 );
 
                 INSERT INTO tasks
@@ -84,7 +116,7 @@ class DB
             Console.WriteLine("Database already exists");
         }
     }
-    public void Delete()
+    public void DeleteAll()
     {
         SqliteConnection.ClearAllPools();
         File.Delete("tasks.db");
@@ -100,7 +132,8 @@ class DB
             var command = connection.CreateCommand();
             command.CommandText =
             @"
-                SELECT * FROM tasks;
+                SELECT description, amount, date FROM tasks
+                ORDER BY date DESC;
             ";
 
             using (var reader = command.ExecuteReader())
