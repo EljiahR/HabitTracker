@@ -1,8 +1,10 @@
 ﻿using Microsoft.Data.Sqlite;
 
-DB db = new DB("tasks");
+DB db = new DB();
 
 db.CreateNew();
+
+Console.WriteLine($"Currently accessing tasks");
 
 foreach (var line in db.GetAll())
 {
@@ -17,16 +19,10 @@ if(deleteDB) db.Delete();
 
 class DB
 {
-    public string fileName { get; set; }
-
-    public DB(string fileName)
-    {
-        this.fileName = fileName;
-    }
     public void CreateNew()
     {
-        if(!File.Exists(this.fileName + ".db")){
-            using (var connection = new SqliteConnection($"Data Source={this.fileName}.db"))
+        if(!File.Exists("tasks.db")){
+            using (var connection = new SqliteConnection($"Data Source=tasks.db"))
             {
                 connection.Open();
 
@@ -45,7 +41,7 @@ class DB
             ";
                 command.ExecuteNonQuery();
             }
-            Console.WriteLine($"Database {this.fileName} created successfully");
+            Console.WriteLine($"Database tasks created successfully");
         }
         else
         {
@@ -55,22 +51,21 @@ class DB
     public void Delete()
     {
         SqliteConnection.ClearAllPools();
-        File.Delete(this.fileName + ".db");
+        File.Delete("tasks.db");
     }
 
     public List<string> GetAll()
     {
         List<string> results = new();
 
-        using (var connection = new SqliteConnection($"Data Source={this.fileName}.db"))
+        using (var connection = new SqliteConnection($"Data Source=tasks.db"))
         {
             connection.Open();
             var command = connection.CreateCommand();
             command.CommandText =
             @"
-                SELECT * FROM tasks
+                SELECT * FROM tasks;
             ";
-            //command.Parameters.AddWithValue("$table", this.fileName);
 
             using (var reader = command.ExecuteReader())
             {
