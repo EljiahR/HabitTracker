@@ -1,31 +1,46 @@
 ﻿using Microsoft.Data.Sqlite;
 
-int menuSelection = Menu.GetMenuChoice();
 DB db = new();
-
-switch(menuSelection)
+db.CreateNew(); // Only runs on start if no tasks.db exists
+DateTime today = DateTime.UtcNow.Date;
+Console.WriteLine(today.ToString("yyyy-MM-dd"));
+int menuSelection;
+do
 {
-    case 1:
-        // Close Application
-        Console.WriteLine("Goodbye!");
-        break;
-    case 2:
-        // View All Records
-        break;
-    case 3:
-        // Insert Record
-        break;
-    case 4:
-        // Delete Record
-        break;
-    case 5:
-        // Update Record
-        break;
-    case 6:
-        // Delete database
-        db.DeleteAll();
-        break;
-}
+    menuSelection = Menu.GetMenuChoice();
+
+    switch (menuSelection)
+    {
+        case 1:
+            // Close Application
+            Console.Clear();
+            Console.WriteLine("\nGoodbye!");
+            break;
+        case 2:
+            // View All Records
+            Console.Clear();
+            Console.WriteLine("\nDisplaying all records from most recent to oldest:\n");
+            foreach(var record in db.GetAll())
+                Console.WriteLine($"{record[0]} performed {record[1]} time{(record[1] == "1" ? "" : "s")} on {record[2]}");
+            break;
+        case 3:
+            // Insert Record
+            break;
+        case 4:
+            // Delete Record
+            break;
+        case 5:
+            // Update Record
+            break;
+        case 6:
+            // Delete database
+            db.DeleteAll();
+            Console.Clear();
+            Console.WriteLine("\nAll records deleted");
+            break;
+    }
+} while (menuSelection != 1);
+
 
 //DB db = new DB();
 
@@ -48,11 +63,8 @@ class Menu
 {
     public static int GetMenuChoice()
     {
-        Console.WriteLine();
-        Console.WriteLine("Main Menu");
-        Console.WriteLine();
-        Console.WriteLine("Select from the following:");
-        Console.WriteLine();
+        Console.WriteLine("\nMain Menu\n");
+        Console.WriteLine("Select from the following:\n");
         bool validInput = true;
         int menuChoice;
         do
@@ -62,25 +74,36 @@ class Menu
             Console.WriteLine("3. Insert Record");
             Console.WriteLine("4. Delete Record");
             Console.WriteLine("5. Update Record");
-            Console.WriteLine();
-            Console.WriteLine("6. Delete All Records");
+            Console.WriteLine("\n6. Delete All Records");
             if(int.TryParse(Console.ReadLine(), out menuChoice))
             {
                 if (menuChoice > 6 || menuChoice < 1)
                 {
                     validInput = false;
-                    Console.WriteLine("Error: Option outside range");
-                    Console.WriteLine();
+                    Console.WriteLine("Error: Option outside range\n");
                 }
                 else validInput = true;
             } else
             {
-                Console.WriteLine("Please use 1-6 to make your selection");
-                Console.WriteLine();
+                Console.WriteLine("Please use 1-6 to make your selection\n");
             }
         } while (!validInput);
 
         return menuChoice;
+    }
+
+    public static void GetRecordInfo()
+    {
+        Console.WriteLine("Would you like to use a pre-existing habit? y/n");
+        string? response = Console.ReadLine();
+        if(response != null && response.ToLower() == "y")
+        {
+            // Display all unique record inputs
+        }
+        else
+        {
+            // Get new record entry
+        }
     }
 }
 class DB
@@ -103,18 +126,16 @@ class DB
                 );
 
                 INSERT INTO tasks
-                VALUES (1, 'Tim'),
-                       (2, 'Tom'),
-                       (3, 'Tum');
+                       (description,                    amount, date)
+                VALUES ('drink water',                  3,      '2024-05-18'),
+                       ('walk a mile',                  5,      '2024-05-18'),
+                       ('make fake records for app',    2,      '2024-05-18');
             ";
                 command.ExecuteNonQuery();
             }
             Console.WriteLine($"Database tasks created successfully");
         }
-        else
-        {
-            Console.WriteLine("Database already exists");
-        }
+        
     }
     public void DeleteAll()
     {
@@ -122,9 +143,9 @@ class DB
         File.Delete("tasks.db");
     }
 
-    public List<string> GetAll()
+    public List<string[]> GetAll()
     {
-        List<string> results = new();
+        List<string[]> results = new();
 
         using (var connection = new SqliteConnection($"Data Source=tasks.db"))
         {
@@ -140,7 +161,7 @@ class DB
             {
                 while (reader.Read())
                 {
-                    results.Add(reader.GetString(1));
+                    results.Add([reader.GetString(0), reader.GetString(1), reader.GetString(2)]);
                 }
             }
         }
