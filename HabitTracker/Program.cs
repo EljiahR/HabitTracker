@@ -1,4 +1,5 @@
 ﻿using Microsoft.Data.Sqlite;
+using System.Globalization;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
 DB db = new();
@@ -31,6 +32,7 @@ do
             break;
         case 5:
             // Update Record
+            Menu.UpdateRecord(db);
             break;
         case 6:
             // Delete database
@@ -93,23 +95,51 @@ class Menu
     public static void InsertRecord(DB db)
     {
         Console.Clear();
+        string description = Menu.GetValidDescription(db);
+        
+        // Get amount
+        Console.Clear();
+        Console.WriteLine($"\t{description}\n");
+        int amount = Menu.GetValidAmount();
+
+        // Get date
+        Console.Clear();
+        Console.WriteLine($"\t{description} done {amount} time{(amount == 1 ? "" : "s")}\n");
+        string date = Menu.GetValidDate();
+
+        //Insert new record
+        Console.Clear();
+        try
+        {
+            db.InsertRecord(description, amount, date);
+            Console.WriteLine("Habit successfully logged");
+        } catch(Exception e)
+        {
+            Console.Error.WriteLine("Error has occured"); // This is shite I know
+        }
+
+
+
+    }
+
+    public static string GetValidDescription(DB db)
+    {
+
         Console.WriteLine("Would you like to use a pre-existing habit? y/n");
         string? response = Console.ReadLine();
-        
+
         string? description;
-        int amount;
-        string? date;
-        if(!string.IsNullOrEmpty(response) && response.ToLower() == "y")
+        if (!string.IsNullOrEmpty(response) && response.ToLower() == "y")
         {
             // Display all unique record inputs
             List<string> records = db.GetUniqueRecords();
-            if(records.Count > 0)
+            if (records.Count > 0)
             {
                 for (int i = 0; i < records.Count; i++)
                     Console.WriteLine($"{i + 1}:\t{records[i]}");
                 string? recordResponse = Console.ReadLine();
                 int chosenRecord;
-                while(!int.TryParse(recordResponse, out chosenRecord) || chosenRecord < 1 || chosenRecord > records.Count)
+                while (!int.TryParse(recordResponse, out chosenRecord) || chosenRecord < 1 || chosenRecord > records.Count)
                 {
                     Console.WriteLine("Invalid response");
                     recordResponse = Console.ReadLine();
@@ -127,25 +157,31 @@ class Menu
             // Get new record entry
             description = GetDescription();
         }
-        
-        // Get amount
-        Console.Clear();
-        Console.WriteLine($"\t{description}\n");
+
+        return description;
+    }
+
+    public static int GetValidAmount() 
+    {
+        int amount;
         Console.WriteLine("Please enter amount of times habit was done");
         string? amountResponse = Console.ReadLine();
-        while(!int.TryParse(amountResponse, out amount))
+        while (!int.TryParse(amountResponse, out amount))
         {
             Console.WriteLine("Invalid response. Please enter amount of times habit was done");
             amountResponse = Console.ReadLine();
         }
 
-        // Get date
-        Console.Clear();
-        Console.WriteLine($"\t{description} done {amount} time{(amount == 1 ? "" : "s")}\n");
+        return amount; 
+    }
+
+    public static string GetValidDate()
+    {
+        string? date;
         Console.WriteLine("Please enter date(YYYY-MM-DD) of habit or leave blank for today");
         string? dateResponse = Console.ReadLine();
         DateTime rawDate = new();
-        while(!string.IsNullOrEmpty(dateResponse) && !DateTime.TryParse(dateResponse, out rawDate))
+        while (!string.IsNullOrEmpty(dateResponse) && !DateTime.TryParse(dateResponse, out rawDate))
         {
             Console.WriteLine("Invalid date, please try again");
             dateResponse = Console.ReadLine();
@@ -155,19 +191,7 @@ class Menu
         else
             date = rawDate.ToString("yyyy-MM-dd");
 
-        //Insert new record
-        //Console.Clear();
-        try
-        {
-            db.InsertRecord(description, amount, date);
-            Console.WriteLine("Habit successfully logged");
-        } catch(Exception e)
-        {
-            Console.Error.WriteLine("Error has occured"); // This is shite I know
-        }
-
-
-
+        return date;
     }
 
     public static void ViewAllRecords(DB db)
@@ -210,7 +234,68 @@ class Menu
 
     public static void UpdateRecord(DB db)
     {
-        int idToDelete = SelectFromRecords(db, "update");
+        int idToUpdate = SelectFromRecords(db, "update");
+        if(idToUpdate != 0)
+        {
+            string[] record = db.GetSingleRecord(idToUpdate);
+            Console.Clear();
+            Console.WriteLine("Please choose which parts to update seperated by commas:\n");
+            Console.WriteLine($"1. Description:\t{record[0]}");
+            Console.WriteLine($"2. Amount: {record[1]}");
+            Console.WriteLine($"3. Date: {record[2]}");
+            string? response;
+            List<int> options = new List<int>();
+            bool responseValid = false;
+            int s; // for testing parsed strings
+            do
+            {
+                response = Console.ReadLine();
+                if(!string.IsNullOrEmpty(response))
+                {
+                    if (response.Contains(","))
+                    {
+                        string[] responses = response.Split(",");
+                        if (responses.All(str => int.TryParse(str, out s) && s >= 1 && s <= 3))
+                        {
+                            foreach (var option in responses)
+                            {
+                                options.Add(int.Parse(option));
+                            }
+                            responseValid = true;
+                        }
+                    } else if(int.TryParse(response, out s) && s >= 1 && s <= 3)
+                    {
+                        options.Add(int.Parse(response));
+                        responseValid = true;
+                    }
+                }
+                if (!responseValid) Console.WriteLine("Invalid response");
+            } while (!responseValid);
+            options.Sort();
+            // get updated records
+            string newDescription = "";
+            int newAmount = 0;
+            string newDate = "";
+            foreach(var option in options)
+            {
+                switch(option)
+                {
+                    case 1:
+                        newDescription = Menu.GetValidDescription(db);
+                        break;
+                    case 2:
+                        newAmount = Menu.GetValidAmount();
+                        break;
+                    case 3:
+                        newDate = Menu.GetValidDate();
+                        break;
+                }
+            }
+            db.UpdateRecord(idToUpdate, options, newDescription, newAmount, newDate);
+            Console.Clear();
+            Console.WriteLine("Record updated successfully");
+        }
+
     }
 
     public static void DeleteRecord(DB db)
@@ -375,6 +460,49 @@ class DB
             command.Parameters.AddWithValue("$description", description);
             command.Parameters.AddWithValue("$amount", amount);
             command.Parameters.AddWithValue("$date", date);
+            command.ExecuteNonQuery();
+
+        }
+    }
+
+    public void UpdateRecord(int id, List<int> options, string description, int amount, string date)
+    {
+        using (var connection = new SqliteConnection("Data Source=tasks.db"))
+        {
+            connection.Open();
+
+            var command = connection.CreateCommand();
+
+
+            command.CommandText =
+            @"
+                UPDATE tasks
+                SET ";
+            
+            for(int i = 0; i < options.Count; i++)
+            {
+                if (i > 0) command.CommandText += @", ";
+                switch(options[i])
+                {
+                    case 1:
+                        command.CommandText += @"description = $description";
+                        command.Parameters.AddWithValue("$description", description);
+                        break;
+                    case 2:
+                        command.CommandText += @"amount = $amount";
+                        command.Parameters.AddWithValue("$amount", amount);
+                        break;
+                    case 3:
+                        command.CommandText += @"date = $date";
+                        command.Parameters.AddWithValue("$date", date);
+                        break;
+                }
+            }
+            command.CommandText +=
+            @"
+                WHERE id = $id;
+            ";
+            command.Parameters.AddWithValue("$id", id);
             command.ExecuteNonQuery();
 
         }
